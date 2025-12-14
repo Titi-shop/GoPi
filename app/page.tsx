@@ -1,76 +1,103 @@
 "use client";
 
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
 
-export default function Home() {
-  const router = useRouter();
+type Position = { lat: number; lng: number };
 
-  const goToMap = () => {
-    router.push("/map");
+export default function MapPage() {
+  const [position, setPosition] = useState<Position | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "",
+  });
+
+  useEffect(() => {
+    if (!("geolocation" in navigator)) {
+      setError("Trình duyệt không hỗ trợ định vị GPS");
+      setLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPosition({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        setLoading(false);
+      },
+      () => {
+        setError(
+          "Không thể lấy vị trí.\n• Thiết bị không có GPS\n• Hoặc Pi Browser/WebView bị giới hạn\n• Hãy bấm dùng vị trí mặc định (test)"
+        );
+        setLoading(false);
+      }
+    );
+  }, []);
+
+  const useDefault = () => {
+    setPosition({ lat: 10.762622, lng: 106.660172 });
+    setError(null);
+    setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        {/* Logo */}
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
+    <div style={{ padding: 16, maxWidth: 520, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 20, fontWeight: 700 }}>📍 Bản đồ tài xế</h1>
 
-        {/* Tiêu đề */}
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            Ứng dụng chạy xe - GoPi
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Bấm vào nút bên dưới để mở bản đồ và xem vị trí hiện tại của bạn.
-          </p>
+      {loading && <p>⏳ Đang lấy vị trí...</p>}
+
+      {!loading && error && (
+        <div style={{ color: "red", whiteSpace: "pre-line" }}>
+          ❌ {error}
         </div>
+      )}
 
-        {/* Các nút điều hướng */}
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          {/* Nút xem bản đồ */}
-          <button
-            onClick={goToMap}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-5 text-white transition-colors hover:bg-blue-700 md:w-[158px]"
-          >
-            🗺️ Xem bản đồ
-          </button>
+      {!position && !loading && (
+        <button
+          onClick={useDefault}
+          style={{
+            marginTop: 12,
+            padding: "10px 14px",
+            borderRadius: 8,
+            border: "none",
+            background: "#000",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          📌 Dùng vị trí mặc định (test)
+        </button>
+      )}
 
-          {/* Nút deploy (giữ nguyên của Next.js) */}
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ? (
+        <p style={{ color: "red", marginTop: 12 }}>
+          ❌ Thiếu Google Maps API Key
+        </p>
+      ) : !isLoaded ? (
+        <p>⏳ Đang tải Google Map...</p>
+      ) : position ? (
+        <div
+          style={{
+            width: "100%",
+            height: 320,
+            marginTop: 12,
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
+          <GoogleMap
+            mapContainerStyle={{ width: "100%", height: "100%" }}
+            center={position}
+            zoom={16}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-
-          {/* Nút tài liệu Next.js */}
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <Marker position={position} />
+          </GoogleMap>
         </div>
-      </main>
+      ) : null}
     </div>
   );
 }
